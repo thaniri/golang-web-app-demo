@@ -1,0 +1,13 @@
+{
+  "Database": {
+    "address": "10.0.0.2",
+    "user": "someUser",
+    "password": "securePassword",
+    "database": "someDatabase",
+    "extra": "?charset=utf8",
+    "type": "mysql"
+  },
+  "UberZapLogger": {
+    "logLevel": "info"
+  }
+}

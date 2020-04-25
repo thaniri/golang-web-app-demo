@@ -1,0 +1,9 @@
+CREATE DATABASE IF NOT EXISTS login CHARACTER SET utf8;
+
+CREATE TABLE IF NOT EXISTS login.users
+  (
+     id           INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+     email        VARCHAR(255) NOT NULL,
+     passwordHash VARCHAR(255) NOT NULL,
+     registered   BOOLEAN      NOT NULL DEFAULT 0
+  );
