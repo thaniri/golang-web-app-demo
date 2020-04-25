@@ -9,11 +9,9 @@ import (
 	"os"
 	"time"
 )
+func main() {
+	var cfg = config.Config{}
 
-var cfg = config.Config{}
-
-// init sets up initial state for the application before starting the webserver.
-func init() {
 	cfg.InitLogger()
 	cfg.ParseCommandLineFlags()
 	err := cfg.ReadConfigFile()
@@ -22,9 +20,7 @@ func init() {
 		os.Exit(1)
 	}
 	cfg.SetSecureCookie()
-}
 
-func main() {
 	controller := controller.New(&cfg)
 	webApp := &http.Server{
 		Addr:         "0.0.0.0:8080",

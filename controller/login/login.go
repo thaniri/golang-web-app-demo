@@ -44,7 +44,7 @@ func UserLogoutPostHandler(w http.ResponseWriter, r *http.Request) {
 // UserLoginPostHandler handles POST requests to /loginPost and is used to authenticate users and set cookies.
 // TODO: Input validation
 // TODO: find a way to limit failed login requests
-func UserLoginPostHandler(cfg *config.Config) http.Handler {
+func UserLoginPostHandlerFactory(cfg *config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := r.FormValue("email")
 		password := r.FormValue("password")
@@ -75,7 +75,7 @@ func UserLoginPostHandler(cfg *config.Config) http.Handler {
 // TODO: Input validation
 // TODO: Error handling for repeated emails
 // TODO: remove panic
-func UserRegistrationHandler(cfg *config.Config) http.Handler {
+func UserRegistrationHandlerFactory(cfg *config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := r.FormValue("email")
 		password := hashPassword(r.FormValue("password"))
@@ -163,7 +163,7 @@ func clearSession(w http.ResponseWriter) {
 }
 
 // InternalPageHandler is just a placeholder
-func InternalPageHandler(cookieHandler *securecookie.SecureCookie) http.Handler {
+func InternalPageHandlerFactory(cookieHandler *securecookie.SecureCookie) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var email string
 		if cookie, err := r.Cookie("session"); err == nil {

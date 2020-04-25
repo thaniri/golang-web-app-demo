@@ -13,9 +13,9 @@ import (
 // New creates and returns new gorilla mux router
 func New(c *config.Config) http.Handler {
 	router := mux.NewRouter()
-	router.Handle("/{internal:internal\\/?}", login.InternalPageHandler(c.CookieHandler))
-	router.Handle("/{register:register\\/?}", login.UserRegistrationHandler(c)).Methods("POST")
-	router.Handle("/{loginPost:loginPost\\/?}", login.UserLoginPostHandler(c)).Methods("POST")
+	router.Handle("/{internal:internal\\/?}", login.InternalPageHandlerFactory(c.CookieHandler))
+	router.Handle("/{register:register\\/?}", login.UserRegistrationHandlerFactory(c)).Methods("POST")
+	router.Handle("/{loginPost:loginPost\\/?}", login.UserLoginPostHandlerFactory(c)).Methods("POST")
 	router.HandleFunc("/{logout:logout\\/?}", login.UserLogoutPostHandler).Methods("POST")
 	router.HandleFunc("/{login:login\\/?}", login.UserLoginHandler)
 	router.HandleFunc("/", root.IndexHandler)
