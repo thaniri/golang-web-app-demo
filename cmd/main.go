@@ -2,19 +2,24 @@
 package main
 
 import (
-	"go.uber.org/zap"
 	"github.com/thaniri/golang-web-app-demo/config"
 	"github.com/thaniri/golang-web-app-demo/controller"
+	"go.uber.org/zap"
 	"net/http"
 	"os"
 	"time"
 )
+
 func main() {
 	var cfg = config.Config{}
 
-	cfg.InitLogger()
+	err := cfg.InitLogger()
+	if err != nil {
+		cfg.Logger.Error("Failed to initialize logger.", zap.Error(err))
+		os.Exit(1)
+	}
 	cfg.ParseCommandLineFlags()
-	err := cfg.ReadConfigFile()
+	err = cfg.ReadConfigFile()
 	if err != nil {
 		cfg.Logger.Error("Failed to read config file.", zap.Error(err))
 		os.Exit(1)

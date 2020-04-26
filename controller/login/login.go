@@ -4,35 +4,28 @@ package login
 
 import (
 	"database/sql"
-	"fmt"
+	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
+	"time"
 	// Allows us to specify our connection type when using the SQL driver.
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/gorilla/securecookie"
-	"go.uber.org/zap"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/thaniri/golang-web-app-demo/config"
+	"go.uber.org/zap"
 	"net/http"
 	"path/filepath"
-	"time"
 )
 
-// TODO: learn how to make html pages for Go
-const internalPage = `
-<h1>Internal</h1>
-<hr>
-<small>User: %s</small>
-<form method="post" action="/logout">
-    <button type="submit">Logout</button>
-</form>
-`
-
-// UserLoginHandler handles GET requests to /login.
-func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
-	file, err := filepath.Abs("./view/login.html")
-	if err != nil {
-		panic(err.Error())
-	}
-	http.ServeFile(w, r, file)
+// UserLoginHandlerFactory handles GET requests to /login.
+func UserLoginHandlerFactory(cfg *config.Config) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		file, err := filepath.Abs("./view/login.html")
+		if err != nil {
+			cfg.Logger.Error("Login view file not found", zap.Error(err))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.ServeFile(w, r, file)
+	})
 }
 
 // UserLogoutPostHandler handles POST requests to /logout and is used to clear a user's cookie.
@@ -41,7 +34,7 @@ func UserLogoutPostHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", 302)
 }
 
-// UserLoginPostHandler handles POST requests to /loginPost and is used to authenticate users and set cookies.
+// UserLoginPostHandlerFactory handles POST requests to /loginPost and is used to authenticate users and set cookies.
 // TODO: Input validation
 // TODO: find a way to limit failed login requests
 func UserLoginPostHandlerFactory(cfg *config.Config) http.Handler {
@@ -51,47 +44,66 @@ func UserLoginPostHandlerFactory(cfg *config.Config) http.Handler {
 		redirectTarget := "/"
 
 		if email != "" && password != "" {
-			if checkPasswordHash(email, password, cfg) {
-				err := setSession(email, w, cfg)
-				if err != nil {
-					// TODO: tell the user somehow their login failed but it wasn't their fault
-					http.Redirect(w, r, redirectTarget, 302)
-				}
-				cfg.Logger.Debug("User logged in", zap.String("username", email))
-				redirectTarget = "/internal"
-			} else {
-				// TODO: tell the user somehow their password was wrong
-				cfg.Logger.Debug("User login password validation failed.")
-				http.Redirect(w, r, redirectTarget, 302)
+			err := checkPasswordHash(email, password, cfg)
+			if err != nil {
+				errString := "Failed to validated username and password"
+				cfg.Logger.Debug(errString,
+					zap.String("user", email))
+				http.Error(w, "Username or password incorrect.", http.StatusUnauthorized)
+				return
 			}
+			err = setSession(email, w, cfg)
+			if err != nil {
+				errString := "Failed to create user session."
+				cfg.Logger.Debug(errString,
+					zap.String("user", email),
+					zap.Error(err))
+				http.Error(w, "Failed to set user session.", http.StatusInternalServerError)
+				return
+			}
+			cfg.Logger.Debug("User logged in", zap.String("username", email))
+			redirectTarget = "/internal"
 		} else {
-			http.Redirect(w, r, redirectTarget, 302)
+			http.Error(w, "Missing login form field values.", http.StatusUnauthorized)
+			return
 		}
+
 		http.Redirect(w, r, redirectTarget, 302)
 	})
 }
 
-// UserRegistrationHandler handles POST requests to /register and is used to create new user accounts.
+// UserRegistrationHandlerFactory handles POST requests to /register and is used to create new user accounts.
 // TODO: Input validation
 // TODO: Error handling for repeated emails
-// TODO: remove panic
+// TODO: use real emails
 func UserRegistrationHandlerFactory(cfg *config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := r.FormValue("email")
-		password := hashPassword(r.FormValue("password"))
+		password := r.FormValue("password")
+		hashedPassword, err := hashPassword(r.FormValue("password"), cfg)
+		if err != nil {
+			http.Error(w, "Failed to encrypt user password.", http.StatusInternalServerError)
+			return
+		}
 		redirectTarget := "/"
 		if email != "" && password != "" {
 			db, err := sql.Open(cfg.DatabaseType, cfg.DatabaseConnectionString)
 			defer db.Close()
-			query := "INSERT users SET email=?, passwordHash=?"
 			if err != nil {
-				panic(err.Error())
+				errString := "Failed to open database connection."
+				cfg.Logger.Error(errString, zap.Error(err))
+				http.Error(w, errString, http.StatusInternalServerError)
+				return
 			}
+			query := "INSERT users SET email=?, passwordHash=?"
 			statement, err := db.Prepare(query)
 			defer statement.Close()
-			_, err = statement.Exec(email, password)
+			_, err = statement.Exec(email, hashedPassword)
 			if err != nil {
-				panic(err.Error())
+				errString := "Failed to insert new user into database."
+				cfg.Logger.Error(errString, zap.Error(err))
+				http.Error(w, errString, http.StatusInternalServerError)
+				return
 			}
 		}
 		http.Redirect(w, r, redirectTarget, 302)
@@ -99,23 +111,24 @@ func UserRegistrationHandlerFactory(cfg *config.Config) http.Handler {
 }
 
 // hashPassword takes in a string and returns a bcrypt hashed password.
-// TODO: handle panic
-func hashPassword(password string) string {
+func hashPassword(password string, cfg *config.Config) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), 10)
 	if err != nil {
-		panic(err.Error())
+		cfg.Logger.Error("Failed to encrypt user password",
+			zap.Error(err))
+		return "", err
 	}
-	return string(hash)
+	return string(hash), nil
 }
 
 // checkPasswordhash takes in a user email, password, and verifies that the password matches the bcrypt hashed password
 // in the database.
-// TODO: handle panic
-func checkPasswordHash(email string, password string, cfg *config.Config) bool {
+func checkPasswordHash(email string, password string, cfg *config.Config) error {
 	query := "SELECT passwordHash from users WHERE email=?"
 	db, err := sql.Open(cfg.DatabaseType, cfg.DatabaseConnectionString)
 	if err != nil {
-		panic(err.Error())
+		cfg.Logger.Error("Failed to open database connection.", zap.Error(err))
+		return err
 	}
 	defer db.Close()
 	row := db.QueryRow(query, email)
@@ -123,13 +136,13 @@ func checkPasswordHash(email string, password string, cfg *config.Config) bool {
 	row.Scan(&passwordHash)
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
-		panic(err.Error())
-		return false
+		cfg.Logger.Error("Failed to open database connection.", zap.Error(err))
+		return errors.Wrap(err, "Inputed password did not match what is on record.")
 	}
-	return true
+	return nil
 }
 
-// setSession takes in a user email and creates a cookie to track that user's session
+// setSession takes in a user email and creates a cookie to track that user's session.
 func setSession(email string, w http.ResponseWriter, cfg *config.Config) error {
 	value := map[string]string{
 		"email": email,
@@ -142,16 +155,16 @@ func setSession(email string, w http.ResponseWriter, cfg *config.Config) error {
 		return err
 	}
 	cookie := &http.Cookie{
-		Name: "session",
-		Value: encoded,
-		Path: "/",
+		Name:    "session",
+		Value:   encoded,
+		Path:    "/",
 		Expires: time.Now().Add(4 * time.Hour),
 	}
 	http.SetCookie(w, cookie)
 	return nil
 }
 
-// clearSession deletes the cookie used to track user's session
+// clearSession deletes the cookie used to track user's session.
 func clearSession(w http.ResponseWriter) {
 	cookie := &http.Cookie{
 		Name:   "session",
@@ -162,20 +175,44 @@ func clearSession(w http.ResponseWriter) {
 	http.SetCookie(w, cookie)
 }
 
-// InternalPageHandler is just a placeholder
-func InternalPageHandlerFactory(cookieHandler *securecookie.SecureCookie) http.Handler {
+// InternalPageHandlerFactory is just a placeholder for a page that requires a valid session.
+func InternalPageHandlerFactory(cfg *config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var email string
-		if cookie, err := r.Cookie("session"); err == nil {
-			cookieValue := make(map[string]string)
-			if err = cookieHandler.Decode("session", cookie.Value, &cookieValue); err == nil {
-				email = cookieValue["email"]
-			}
+		err := sessionCookieValidation(r, cfg)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		if email != "" {
-			fmt.Fprintf(w, internalPage, email)
-		} else {
-			fmt.Fprintf(w, "fucked ", email)
+		file, err := filepath.Abs("./view/internal.html")
+		if err != nil {
+			cfg.Logger.Error("Internal view file not found.", zap.Error(err))
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		http.ServeFile(w, r, file)
 	})
+}
+
+// sessionCookieValidation is used to check if a user has a valid session to access internal resources.
+func sessionCookieValidation(r *http.Request, cfg *config.Config) error {
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		cfg.Logger.Error("Failed to retrieve session cookie.",
+			zap.Error(err))
+		return err
+	}
+	cookieValue := make(map[string]string)
+	err = cfg.CookieHandler.Decode("session", cookie.Value, &cookieValue)
+	if err != nil {
+		cfg.Logger.Error("Failed to decode cookie.",
+			zap.Error(err))
+		return err
+	}
+	if cookieValue["email"] == "" {
+		errString := "Decoded cookie has empty user email field."
+		cfg.Logger.Error(errString)
+		return errors.New(errString)
+	}
+
+	return nil
 }
