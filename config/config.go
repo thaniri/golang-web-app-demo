@@ -20,10 +20,14 @@ type JSONConfig struct {
 		Database string `json:"database"`
 		Extra    string `json:"extra,omitempty"`
 		Type     string `json:"type"`
-	} `json:"Database"`
+	} `json:"database"`
 	UberZapLogger struct {
 		LogLevel string `json:"logLevel"`
-	} `json:"UberZapLogger,omitempty"`
+	} `json:"uberZapLogger,omitempty"`
+	CookieEncryption struct {
+		HashKey  string `json:"hashKey"`
+		BlockKey string `json:"blockKey"`
+	} `json:"cookieEncryption,omitempty"`
 }
 
 // Config is a struct which holds configurations after parsing configuration files and command line flags.
@@ -68,6 +72,7 @@ func (cfg *Config) ReadConfigFile() error {
 		return err
 	}
 
+	// database setup
 	connectionString := (jsonConfig.Database.User +
 		":" +
 		jsonConfig.Database.Password +
@@ -81,6 +86,7 @@ func (cfg *Config) ReadConfigFile() error {
 	cfg.DatabaseConnectionString = connectionString
 	cfg.DatabaseType = jsonConfig.Database.Type
 
+	// log level setup
 	atom := zap.NewAtomicLevel()
 	switch jsonConfig.UberZapLogger.LogLevel {
 	case "info":
@@ -90,6 +96,10 @@ func (cfg *Config) ReadConfigFile() error {
 	default:
 		atom.SetLevel(zap.InfoLevel)
 	}
+
+	// session handling setup
+	cfg.SetSecureCookie(jsonConfig.CookieEncryption.HashKey, jsonConfig.CookieEncryption.BlockKey)
+
 	return nil
 }
 
@@ -110,13 +120,26 @@ func (jsonConfig *JSONConfig) validate() error {
 	if jsonConfig.Database.Type != "mysql" {
 		return errors.New("Database type config not set. Currently only mysql supported.")
 	}
+	if len(jsonConfig.CookieEncryption.HashKey) > 64 {
+		return errors.New("hashKey config should not be longer than 64 bytes (characters).")
+	}
+	if len(jsonConfig.CookieEncryption.BlockKey) > 32 {
+		return errors.New("blockKey config should not be longer than 32 bytes (characters).")
+	}
 	return nil
 }
 
+// TODO: create a function which pings the db on startup
+
 // SetSecureCookie creates a new SecureCookie for session management.
-// TODO: How to persist this cookie between application restarts?
-func (cfg *Config) SetSecureCookie() {
-	cfg.CookieHandler = securecookie.New(
-		securecookie.GenerateRandomKey(64),
-		securecookie.GenerateRandomKey(32))
+func (cfg *Config) SetSecureCookie(hashKey string, blockKey string) {
+	if len(hashKey) == 0 || len(blockKey) == 0 {
+		cfg.CookieHandler = securecookie.New(
+			securecookie.GenerateRandomKey(64),
+			securecookie.GenerateRandomKey(32))
+	} else {
+		cfg.CookieHandler = securecookie.New(
+			[]byte(hashKey),
+			[]byte(blockKey))
+	}
 }

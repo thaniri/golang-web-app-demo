@@ -24,7 +24,6 @@ func main() {
 		cfg.Logger.Error("Failed to read config file.", zap.Error(err))
 		os.Exit(1)
 	}
-	cfg.SetSecureCookie()
 
 	controller := controller.New(&cfg)
 	webApp := &http.Server{

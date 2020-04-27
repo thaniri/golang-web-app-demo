@@ -1,5 +1,6 @@
 // Package login is used to handle workflows related to logging in, setting cookies, registering accounts, and logging
 // out.
+// TODO: exponential backoffs on database queries
 package login
 
 import (
@@ -46,9 +47,9 @@ func UserLoginPostHandlerFactory(cfg *config.Config) http.Handler {
 		if email != "" && password != "" {
 			err := checkPasswordHash(email, password, cfg)
 			if err != nil {
-				errString := "Failed to validated username and password"
-				cfg.Logger.Debug(errString,
-					zap.String("user", email))
+				cfg.Logger.Debug("Validating password",
+					zap.String("user", email),
+					zap.Error(err))
 				http.Error(w, "Username or password incorrect.", http.StatusUnauthorized)
 				return
 			}
@@ -136,8 +137,9 @@ func checkPasswordHash(email string, password string, cfg *config.Config) error 
 	row.Scan(&passwordHash)
 	err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 	if err != nil {
-		cfg.Logger.Error("Failed to open database connection.", zap.Error(err))
-		return errors.Wrap(err, "Inputed password did not match what is on record.")
+		errString := "Failed to validate username and password"
+		cfg.Logger.Error(errString, zap.Error(err))
+		return errors.Wrap(err, errString)
 	}
 	return nil
 }
