@@ -5,5 +5,6 @@ CREATE TABLE IF NOT EXISTS login.users
      id           INT UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
      email        VARCHAR(255) NOT NULL,
      passwordHash VARCHAR(255) NOT NULL,
-     registered   BOOLEAN      NOT NULL DEFAULT 0
+     registered   BOOLEAN      NOT NULL DEFAULT 0,
+     userType     VARCHAR(255) NOT NULL DEFAULT 'Regular'
   );

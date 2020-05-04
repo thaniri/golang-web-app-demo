@@ -106,25 +106,25 @@ func (cfg *Config) ReadConfigFile() error {
 // validate is used to ensure required fields are present in JSON after unmarshalling.
 func (jsonConfig *JSONConfig) validate() error {
 	if jsonConfig.Database.Address == "" {
-		return errors.New("Database address config not set.")
+		return errors.New("Database address config not set")
 	}
 	if jsonConfig.Database.User == "" {
-		return errors.New("Database user config not set.")
+		return errors.New("Database user config not set")
 	}
 	if jsonConfig.Database.Password == "" {
-		return errors.New("Database password config not set.")
+		return errors.New("Database password config not set")
 	}
 	if jsonConfig.Database.Database == "" {
-		return errors.New("Database database config not set.")
+		return errors.New("Database database config not set")
 	}
 	if jsonConfig.Database.Type != "mysql" {
-		return errors.New("Database type config not set. Currently only mysql supported.")
+		return errors.New("Database type config not set. Currently only mysql supported")
 	}
 	if len(jsonConfig.CookieEncryption.HashKey) > 64 {
-		return errors.New("hashKey config should not be longer than 64 bytes (characters).")
+		return errors.New("hashKey config should not be longer than 64 bytes (characters)")
 	}
 	if len(jsonConfig.CookieEncryption.BlockKey) > 32 {
-		return errors.New("blockKey config should not be longer than 32 bytes (characters).")
+		return errors.New("blockKey config should not be longer than 32 bytes (characters)")
 	}
 	return nil
 }

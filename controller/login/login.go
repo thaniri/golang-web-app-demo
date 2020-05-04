@@ -1,6 +1,9 @@
 // Package login is used to handle workflows related to logging in, setting cookies, registering accounts, and logging
 // out.
-// TODO: exponential backoffs on database queries
+// TODO: exponential backoffs on database queries or IO requests
+// TODO: put database calls into seperate functions so that they are testable: https://blog.questionable.services/article/testing-http-handlers-go/
+// read: https://thoughtbot.com/blog/interface-with-your-database-in-go
+// read: https://www.alexedwards.net/blog/organising-database-access#using-an-interface
 package login
 
 import (

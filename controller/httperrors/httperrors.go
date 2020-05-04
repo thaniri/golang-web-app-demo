@@ -1,4 +1,4 @@
-// Package errors is used to serve HTTP errors.
+// Package httperrors is used to serve HTTP errors.
 package httperrors
 
 import (
